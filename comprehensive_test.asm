@@ -1,0 +1,61 @@
+; Optimized output from comprehensive_test.asm
+TEST_LOAD_STORE:
+  MOV  R0, R1
+  ST   a, R0
+  HALT
+TEST_LOAD_COPY:
+  MOV  R0, R1
+  ST   a, R0
+  MOV  R3, R0
+  HALT
+TEST_REDUNDANT_STORE:
+  LD   R1, x
+  ST   x, R1
+  HALT
+TEST_ADD_ZERO:
+  LD   R1, #7
+  MOV  R2, R1
+  HALT
+TEST_MUL_ONE:
+  LD   R1, #7
+  MOV  R2, R1
+  HALT
+TEST_MUL_ZERO:
+  LD   R1, #9
+  LD   R2, #0
+  HALT
+TEST_SELF_MOVE:
+  LD   R4, #5
+  HALT
+TEST_STRENGTH:
+  LD   R1, #3
+  LD   R2, #24
+  HALT
+TEST_CONSTANT_FOLD:
+  LD   R1, #4
+  LD   R1, #10
+  HALT
+TEST_NEXT_JUMP:
+L_NEXT:
+  LD   R0, #1
+  HALT
+TEST_JUMP_CHAIN:
+L_CHAIN1:
+L_CHAIN2:
+  LD   R0, #2
+  HALT
+TEST_UNREACHABLE:
+L_UNREACH_END:
+  LD   R0, #3
+  HALT
+TEST_DEAD_STORE:
+  LD   R1, #10
+  LD   R2, #20
+  ST   d, R2
+  HALT
+TEST_LOOP:
+  LD   R0, #3
+L_LOOP:
+  SUB  R0, R0, #1
+  JNZ  R0, L_LOOP
+  HALT

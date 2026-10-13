@@ -1,0 +1,13 @@
+*.o
+peephole
+test_parser
+test_rules
+test_optimizer
+*.exe
+*.out
+*.log
+*.tmp
+core
+core.*
+.DS_Store
+.vscode/
