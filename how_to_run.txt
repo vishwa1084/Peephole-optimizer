@@ -1,0 +1,15 @@
+1.open a terminal in the project directory
+
+2.run the following command
+make
+
+ 3. Run on an Assembly Sample
+
+./peephole samples/sample1.asm
+
+
+
+ 4. Run on a C Program
+
+./peephole samples/input.c
+
