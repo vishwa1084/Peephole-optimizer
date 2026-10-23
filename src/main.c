@@ -1,4 +1,6 @@
 #include "optimizer.h"
+#include "app.h"
+#include "encoder.h"
 #include <inttypes.h>
 #include <errno.h>
 #include <stdio.h>
@@ -54,7 +56,8 @@ static bool parse_rules(const char *text, unsigned *mask) {
         {"mul-zero", RULE_MUL_ZERO}, {"self-move", RULE_SELF_MOVE},
         {"strength", RULE_STRENGTH}, {"fold", RULE_FOLD},
         {"next-jump", RULE_NEXT_JUMP}, {"jump-chain", RULE_JUMP_CHAIN},
-        {"unreachable", RULE_UNREACHABLE}, {"dead-store", RULE_DEAD_STORE}
+        {"unreachable", RULE_UNREACHABLE}, {"dead-store", RULE_DEAD_STORE},
+        {"const-prop", RULE_CONST_PROP}
     };
     if (!text || !*text || !mask) return false;
     *mask = 0;
@@ -84,15 +87,19 @@ static bool parse_rules(const char *text, unsigned *mask) {
 
 static void usage(FILE *stream) {
     fprintf(stream,
-        "Usage: peephole [options] input.asm\n"
-        "  -o FILE       write optimized assembly to FILE\n"
+        "Usage: peephole [options] input.c|input.asm\n"
+        "  -o FILE       write optimized target instructions to FILE\n"
+        "  --binary FILE write optimized custom-ISA machine code to FILE\n"
+        "  --hex FILE    write a hex dump of optimized custom-ISA code\n"
         "  --rules LIST  comma-separated rule names (default: all)\n"
         "  -h, --help    show this help\n"
         "Rules: all, load-after-store, load-copy, redundant-store, algebra,\n"
         "       mul-zero, self-move, strength, fold, next-jump, jump-chain,\n"
         "       unreachable, dead-store\n"
+        "       const-prop\n"
         "Examples:\n"
         "  peephole program.asm\n"
+        "  peephole samples/input.c\n"
         "  peephole -o optimized.asm program.asm\n"
         "  peephole --rules algebra,fold program.asm\n");
 }
@@ -179,9 +186,10 @@ static bool report(FILE *stream, const Program *original, const Program *optimiz
     return !ferror(stream);
 }
 
-int main(int argc, char **argv) {
+int peephole_run(int argc, char **argv) {
     const char *input = NULL;
     const char *output = NULL;
+    const char *binary_output = NULL, *hex_output = NULL;
     unsigned rules = RULE_ALL;
     bool output_seen = false;
     bool rules_seen = false;
@@ -195,6 +203,12 @@ int main(int argc, char **argv) {
             if (output_seen) { fprintf(stderr, "-o may be specified only once\n"); return 2; }
             output = argv[i];
             output_seen = true;
+        } else if (strcmp(argv[i], "--binary") == 0 || strcmp(argv[i], "--hex") == 0) {
+            bool binary = strcmp(argv[i], "--binary") == 0;
+            if (++i == argc) { fprintf(stderr, "%s requires a file\n", binary ? "--binary" : "--hex"); return 2; }
+            const char **destination = binary ? &binary_output : &hex_output;
+            if (*destination) { fprintf(stderr, "%s may be specified only once\n", binary ? "--binary" : "--hex"); return 2; }
+            *destination = argv[i];
         } else if (strcmp(argv[i], "--rules") == 0) {
             if (rules_seen) { fprintf(stderr, "--rules may be specified only once\n"); return 2; }
             if (++i == argc || !parse_rules(argv[i], &rules)) {
@@ -209,11 +223,20 @@ int main(int argc, char **argv) {
     }
     if (!input) { usage(stderr); return 2; }
 
+    const char *extension = strrchr(input, '.');
+    if (!extension || (strcmp(extension, ".asm") != 0 && strcmp(extension, ".c") != 0)) {
+        fprintf(stderr, "unsupported input type: expected a .c or .asm file\n");
+        return 2;
+    }
+
     Program original = {0}, optimized = {0};
     RewriteLog log = {0};
     OptimizeStats stats = {0};
     char err[256];
-    if (!parse_file(input, &optimized, err, sizeof(err))) {
+    bool parsed = strcmp(extension, ".c") == 0
+        ? parse_c_file(input, &optimized, err, sizeof(err))
+        : parse_file(input, &optimized, err, sizeof(err));
+    if (!parsed) {
         fprintf(stderr, "%s\n", err);
         return 1;
     }
@@ -231,6 +254,17 @@ int main(int argc, char **argv) {
     if (output && !write_output_file(output, input, &optimized)) {
         program_free(&optimized); program_free(&original); rewrite_log_free(&log);
         return 1;
+    }
+    if (binary_output || hex_output) {
+        const char *paths[2] = {binary_output, hex_output};
+        for (size_t k=0;k<2;k++) if(paths[k]) {
+            FILE *f=fopen(paths[k], k==0 ? "wb" : "w");
+            if(!f) { perror(paths[k]); program_free(&optimized); program_free(&original); rewrite_log_free(&log); return 1; }
+            err[0]='\0';
+            bool ok=k==0 ? encode_binary(&optimized,f,err,sizeof err) : write_hex(&optimized,f,err,sizeof err);
+            if(fclose(f)!=0) ok=false;
+            if(!ok) { fprintf(stderr,"%s\n",err[0]?err:"failed closing encoded output"); program_free(&optimized); program_free(&original); rewrite_log_free(&log); return 1; }
+        }
     }
     bool report_ok = report(stdout, &original, &optimized, &log, &stats);
     if (!report_ok) fprintf(stderr, "failed writing report to standard output\n");

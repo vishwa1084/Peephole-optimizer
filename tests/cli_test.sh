@@ -9,6 +9,26 @@ mkdir -p "$tmp"
 grep -q '^Usage: peephole' "$tmp/help.txt"
 grep -q 'load-after-store' "$tmp/help.txt"
 grep -q 'peephole --rules algebra,fold' "$tmp/help.txt"
+grep -q 'dead-store' "$tmp/help.txt"
+grep -q 'const-prop' "$tmp/help.txt"
+for rule in load-after-store load-copy redundant-store algebra mul-zero self-move strength fold next-jump jump-chain unreachable dead-store; do
+  grep -q "$rule" "$tmp/help.txt"
+done
+
+# The added C constant-propagation rule is selectable and reports real rewrites.
+./peephole samples/input.c --rules const-prop > "$tmp/const-prop-report.txt"
+grep -q 'Rewrites: [1-9]' "$tmp/const-prop-report.txt"
+grep -q 'constant-branch\|constant-propagation' "$tmp/const-prop-report.txt"
+
+# C input is parsed, translated, and passed through the same optimizer.
+./peephole samples/input.c > "$tmp/c-report.txt"
+grep -q 'Original code:' "$tmp/c-report.txt"
+grep -q 'Optimized code:' "$tmp/c-report.txt"
+grep -q 'MUL ' "$tmp/c-report.txt"
+grep -q 'SUB ' "$tmp/c-report.txt"
+grep -q 'Rewrites:' "$tmp/c-report.txt"
+./peephole -o "$tmp/c-out.asm" samples/input.c > /dev/null
+grep -q '^  HALT' "$tmp/c-out.asm"
 
 # Standard run reports both programs, counts, costs, savings, passes and source lines.
 ./peephole samples/sample1.asm > "$tmp/report.txt"

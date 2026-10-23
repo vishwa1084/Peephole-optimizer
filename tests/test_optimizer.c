@@ -23,5 +23,5 @@ int main(void){test_parse_errors();
  p=parse("NOP\n");CHECK(p.count==1);program_free(&p);
  p=parse("ST x, R1\nblock:\nLD R2, x\n");l=(RewriteLog){0};CHECK(optimize(&p,RULE_LOAD_COPY,&l,&s,e,sizeof e));CHECK(l.count==0&&p.items[1].op==OP_LABEL);program_free(&p);rewrite_log_free(&l);
  p=parse("JMP A\nA:\nJMP B\nB:\nJMP A\n");l=(RewriteLog){0};CHECK(optimize(&p,RULE_JUMP_CHAIN,&l,&s,e,sizeof e));CHECK(s.passes==1&&l.count==0&&p.count==5);program_free(&p);rewrite_log_free(&l);
- p=parse("JMP trampoline\nbody:\nNOP\ntrampoline:\nJMP finish\nfinish:\nHALT\n");l=(RewriteLog){0};CHECK(optimize(&p,RULE_ALL,&l,&s,e,sizeof e));CHECK(l.count>0&&p.items[0].op==OP_JMP&&!strcmp(p.items[0].arg[0].name,"finish"));program_free(&p);rewrite_log_free(&l);
+ p=parse("JMP trampoline\nbody:\nNOP\ntrampoline:\nJMP finish\nfinish:\nHALT\n");l=(RewriteLog){0};CHECK(optimize(&p,RULE_ALL,&l,&s,e,sizeof e));CHECK(l.count>0&&validate_labels(&p,e,sizeof e));CHECK(p.count>=2&&p.items[0].op==OP_LABEL&&strcmp(p.items[0].arg[0].name,"finish")==0&&p.items[1].op==OP_HALT);program_free(&p);rewrite_log_free(&l);
  if(failures){fprintf(stderr,"%d test(s) failed\n",failures);return 1;}puts("all C tests passed");return 0;}

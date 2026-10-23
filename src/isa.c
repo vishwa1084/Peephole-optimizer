@@ -3,9 +3,11 @@
 #include <stdio.h>
 #include <string.h>
 
-static const char *names[] = {"INVALID","LABEL","LD","ST","MOV","ADD","SUB","MUL","DIV","SHL","SHR","JMP","JZ","JNZ","NOP","HALT"};
-const char *opcode_name(Opcode op) { return op >= OP_INVALID && op <= OP_HALT ? names[op] : "INVALID"; }
-bool opcode_parse(const char *s, Opcode *op) { for (int i=OP_LD;i<=OP_HALT;i++) if (strcmp(s,names[i])==0) {*op=(Opcode)i; return true;} return false; }
+static const char *names[] = {"INVALID","LABEL","LD","ST","MOV","ADD","SUB","MUL","DIV","SHL","SHR","JMP","JZ","JNZ","NOP","HALT","CMP","JLT","JGT","JLE","JGE","JE","JNE"};
+const char *opcode_name(Opcode op) { return op >= OP_INVALID && op <= OP_JNE ? names[op] : "INVALID"; }
+bool opcode_parse(const char *s, Opcode *op) { for (int i=OP_LD;i<=OP_JNE;i++) if (strcmp(s,names[i])==0) {*op=(Opcode)i; return true;} return false; }
+bool isa_is_conditional_branch(Opcode op) { return op==OP_JZ||op==OP_JNZ||op==OP_JLT||op==OP_JGT||op==OP_JLE||op==OP_JGE||op==OP_JE||op==OP_JNE; }
+bool isa_is_branch(Opcode op) { return op==OP_JMP||isa_is_conditional_branch(op); }
 bool isa_valid_name(const char *s) {
     if (!s || !(isalpha((unsigned char)s[0]) || s[0] == '_')) return false;
     size_t n = 1;
@@ -27,8 +29,12 @@ bool isa_validate(const Instruction *i,char *e,size_t n) {
     case OP_ADD: case OP_SUB: case OP_MUL: case OP_DIV: case OP_SHL: case OP_SHR:
         if(i->argc==3&&regop(i->arg[0])&&regop(i->arg[1])&&(regop(i->arg[2])||i->arg[2].kind==OPER_IMM)) return true;
         break;
+    case OP_CMP: if(i->argc==2&&regop(i->arg[0])&&regop(i->arg[1])) return true; break;
     case OP_JMP: if(i->argc==1&&i->arg[0].kind==OPER_LABEL&&isa_valid_name(i->arg[0].name))return true; break;
     case OP_JZ: case OP_JNZ: if(i->argc==2&&regop(i->arg[0])&&i->arg[1].kind==OPER_LABEL&&isa_valid_name(i->arg[1].name))return true; break;
+    case OP_JLT: case OP_JGT: case OP_JLE: case OP_JGE: case OP_JE: case OP_JNE:
+        if(i->argc==1&&i->arg[0].kind==OPER_LABEL&&isa_valid_name(i->arg[0].name)) return true;
+        break;
     case OP_NOP: case OP_HALT: if(i->argc==0)return true; break;
     default: break;
     }
